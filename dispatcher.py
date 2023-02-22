@@ -52,23 +52,24 @@ def dispatcher(func):
             elif p.annotation.__name__ != '_empty' and p.kind.value == 1:
                 value = 'empty' if '_empty' in str(p.default) else p.default
                 kind = 4
-            
+
             # elif isinstance(p.default, type):
             #     # original
             #     value = 'empty'
             #     kind = 4
             else:
-                value = p.default
+                value = 'empty' if '_empty' in str(p.default) else p.default
                 kind = p.kind.value 
 
             if p.annotation.__name__ == '_empty':
                 method_sig = 'any' if type(p.default).__name__ == 'type' else type(p.default).__name__
             else: 
                 method_sig = p.annotation.__name__
+                # method_sig = p.name
 
             arguments.append((p.name, kind, method_sig, value))
 
-            method_sig = p.name if value != 'empty' else method_sig
+            # method_sig = p.name if value != 'empty' else method_sig
             fnc_to_reg.append(method_sig)
 
         fnc_to_reg = tuple(fnc_to_reg)
@@ -92,8 +93,7 @@ def dispatcher(func):
                 # positional arg
                 n = (t if (t := arg.__class__.__name__) != 'type' else arg.__name__) #'any'
                 # Manage the Enum type if any or factoring the positional tyepe.
-                # It doesn't matter whether an arg is positional only or positional/keyword. 
-                # At this state to me those are all positionals, hence 1.
+                # A 'positional only' or 'positional/keyword' is a positional arg, hence 1.
                 k = 5 if isinstance(arg, Enum) or 'enum' in str(type(arg)) else 1
                 t =  type(arg).__name__ #(t if (t := arg.__class__.__name__) != 'type' else arg.__name__)
                 v = arg 
@@ -122,103 +122,85 @@ def dispatcher(func):
 
         return signature_
 
-    def __match_signature(arguments, sig_len_check, include_generic):
-        '''Private function to find out all the possible matching signatures.
+    def __match_signature(arguments, sig_check, match_type, include_generic):
+        '''Private function to find out matching signatures.
             The check is purely based on numerical numbers and looking for
             generic parameters if requested.
-            
-            An in-depth check is done with a separate function.'''
-        def flat_list(list_):
-            # flatten the list
-            flat_list = []
-            for i in list_:
-                flat_list += i
-            return flat_list
+
+            An in-depth check is done with a separate function.
+        '''
+        matched = []
+
+        match match_type:
+            case 'exact' | '==':
+                matched = [k for k in arguments.keys() if len(k) == len(sig_check)]
+            case 'greater' | '>' | 'gt':
+                matched = [k for k in arguments.keys() if len(k) > len(sig_check)]
+            case 'lower' | '<' | 'lt':
+                matched = [k for k in arguments.keys() if len(k) < len(sig_check)]
+            case 'greater equal' | '>=' | 'gte':
+                matched = [k for k in arguments.keys() if len(k) >= len(sig_check)]
+            case 'lower equal' | '<=' | 'lte':
+                matched = [k for k in arguments.keys() if len(k) <= len(sig_check)]
+
+        match include_generic:
+            case True: 
+                pass
+            case False | 'Only':
+                filtered = iter(matched)
+                idx = 0
+                while True:
+                    try:
+                        current = next(filtered)
+                        if include_generic == False:
+                            if 'any' in current:
+                                matched.pop(idx)
+                        else:
+                            if 'any' not in current:
+                                matched.pop(idx)
+                    except StopIteration:
+                        break
+                    idx += 1
+
+        return matched
         
-        if include_generic:
-            matched = []
-            for k in arguments.keys():
-                # if len(k) == len(sig_len_check):
-                if eval(str(len(k))+sig_len_check):
-                    flatten = flat_list(arguments.get(k))
-                    if 'any' not in flatten:
-                        matched.append(k)
-            return matched
-        else:
-            return [k for k in arguments.keys() if eval(str(len(k))+sig_len_check)]
-            # return [k for k in arguments.keys() if len(k) == len(sig_len_check)]
-            
-    def __get_argument(mfs_to_eval, current_arg):
-        '''Private function to determine the correspondance between 
-        a single calling argument and its corresponding recepient.
+        if not include_generic:
+            matched = matched[::-1]
+            filtered = iter(matched)
+            idx = 0
+            while True:
+                try:
+                    current = next(filtered)
+                    if 'any' in current:
+                        matched.pop(idx)
+                except StopIteration:
+                    break
+                idx += 1
+
+            # restore the original order
+            return matched[::-1]
+
+    def __bind_signature(matches, *args, **kwargs):
+        '''Private function to attempt binding the given arguments
+        with a possible signature, then launch the dispatch. 
         
         Args:
-            mfs_to_eval: is the single argument in the evaluated signature
-            current_arg: is the single argument being assessed
+            matches: contains the matched signatures
+            args & kwargs: the arguments that will dispatched
         '''
-        proceed = False
-        
-        # Determine the type
-        match mfs_to_eval[1]:
-            case 1:
-                # It's a positional only argument. Only type can match
-                if type(mfs_to_eval[3]).__name__ == current_arg[2]:
-                # if isinstance(mfs_to_eval[3], eval(current_arg[2])):
-                    proceed = True
-            case 4:
-                # It's a keyword argument. Both type and name should match
-                if mfs_to_eval[1] == current_arg[1] and mfs_to_eval[2] == current_arg[2]:
-                    proceed = True
-            case 5:
-                # It's an enum argument. Only type can match
-                if mfs_to_eval[2] == current_arg[2]:
-                    proceed = True
-            case _:
-                # Added as a precaution. It should not happen
-                raise TypeError("This type is not supported yet.") from None
-        
-        if not proceed:
-            return None
-
-        else:
-            if mfs_to_eval[3] != 'empty':
-                # The argument was passed
-                return {current_arg[0]: mfs_to_eval[3]}
-            elif current_arg[3] != 'empty':
-                # The default value is used if any
-                return {current_arg[0]: current_arg[3]}
-            
-    def __is_sig_partial(sig_to_check, against):
-        # Need to check for signature length as well as if there is 
-        # any optional that will allow me to progress later
-        fitting_args = 0
-        default_args = 0
-        other_args = 0
-
-        for index, item in enumerate(sig_to_check):
-            # fitting_args += 1 if item[2] == against[index][2] and against[index][3] == 'empty' else 0
-            # default_args += 1 if item[2] == against[index][2] and against[index][3] != 'empty' else 0
-            
-            if item[2] == against[index][2] and against[index][3] == 'empty':
-                fitting_args += 1
-                continue
-            
-            # At this stage can be an optional argument
-            if against[index][3] != 'empty':
-                default_args += 1 
-        
-        for item in against[index + 1:]:
-            other_args += 1 if against[index + 1][3] != 'empty' else 0
-
-        return (fitting_args + default_args + other_args) == len(against)
-    
-    def __find_argument(sig_to_check, arg):
-            # I can have only one matching combination
+        for idx, sig in enumerate(matches):
             try:
-                # return [index for index, i in enumerate(sig_to_check) if arg[0] == i[0] and arg[2] == i[2]][0]
-                return [index for index, i in enumerate(sig_to_check) if arg[2] == i[2]][0]
+                sig_test = signature(_registry.get(matches[idx]))
+                sig_test.bind(*args, **kwargs)
+
+                try:
+                    return _registry[tuple(sig)](*args, **kwargs)
+                except KeyError:
+                    pass
             except:
-                return None
+                continue
+
+        return NotImplemented
 
     def dispatch(*args, **kwargs):
         if args and hasattr(args[0], func.__name__):
@@ -237,7 +219,8 @@ def dispatcher(func):
             # recall assuming a correct signature was given
             sig = tuple((i[0] for i in full_sig))
             return _registry[sig](*args, **kwargs)
-        except KeyError: #TODO: Sig_type and sig can be the same, avoid the call
+        except KeyError: 
+            #TODO: Sig_type and sig can be the same, avoid the call
             try:
                 # Attempt to dispatch to the same method but by signature type
                 sig = tuple((i[2] for i in full_sig))
@@ -246,90 +229,36 @@ def dispatcher(func):
                 raise NotImplementedError("No suitable method exists.")
 
             except KeyError:
-                # Case 1: argument length the same, signature different
-                # Case 2: argument length different, have default values
-                # Case 3: argument length the same, generic signature
-
+                # Case 1: same argument length, different signature
+                # Case 2: different argument length, have default values
+                # Case 3: same argument length, generic signature
+                
+                ret = NotImplemented
+                
                 # Case 1)
-                # Recalling assuming the arguments number is the same and its type matches
-                # No positional arguments 
-                matching_sigs = __match_signature(__arguments, '=='+str(len(full_sig)), False)
-
+                # Recalling with the binding approach, any non-matching signature is
+                # captured by a TypeError managed within the exception
+                matching_sigs = __match_signature(__arguments, full_sig, '==', False)
                 if len(matching_sigs) > 0:
-                    for i in matching_sigs:
-                        sig_repl = []
-
-                        for index, this_sig in enumerate(__arguments.__getitem__(i)):
-                            # Only if signature name and type matches
-                            # This is to prevent calls when keyword arguments only exists but the signature is different 
-                            if this_sig[2] == full_sig[index][2] and type(full_sig[index][3]) == type(this_sig[2]):
-                                # There is a matching by type
-                                sig_repl.append(i[index])
-
-                        if len(sig_repl) > 0:
-                            try:
-                                return _registry[tuple(sig_repl)](*args, **kwargs)
-                            except KeyError:
-                                pass
-
-                        del(this_sig)
-                        del(sig_repl)
-
+                    ret = __bind_signature(matching_sigs, *args, **kwargs)
+                    if ret is not NotImplemented: return ret
+                
                 # Case 2)
                 # Check for alternative method whose signature could be compatible
-                matching_sigs = __match_signature(__arguments, '>='+str(len(full_sig)), False)
-
-                if len(matching_sigs) > 0:
-                    for match in matching_sigs:
-                        # Process the suggested match against the retrieved calling signature
-                        metfun_sig_args = __arguments.get(match)
-
-                        if __is_sig_partial(full_sig, metfun_sig_args):
-                            kwargs.clear()
-                            metfun_sig_args = iter(metfun_sig_args)
-
-                            while True:
-                                try:
-                                    msa = next(metfun_sig_args)
-                                except StopIteration:
-                                    break
-                                else:
-                                    arg_idx = __find_argument(full_sig, msa)
-
-                                    if arg_idx is None:
-                                        kwargs.update({msa[0]: msa[3]})
-                                    else:
-                                        # if no arg matches, then grab the default value. There should be one
-                                        kwargs.update(__get_argument(full_sig[arg_idx], msa))
-
-                            if len(kwargs) == len(match):
-                                try:
-                                    if args and hasattr(args[0], func.__name__): 
-                                        return _registry[match](args[0], **kwargs)
-                                    else:
-                                        return _registry[match](**kwargs)
-                                except KeyError:
-                                    pass
+                matching_sigs = __match_signature(__arguments, full_sig, '>=', False)
+                if len(matching_sigs) > 0: 
+                    ret = __bind_signature(matching_sigs, *args, **kwargs)
+                    if ret is not NotImplemented: return ret
 
                 # Case 3)
                 # Last attempt, trying to dispatch to a generic if it exists
-                # Receiving call might have been not designed for the input
-                matching_sigs = __match_signature(__arguments, '>='+str(len(full_sig)), True)
-
-                if len(matching_sigs) > 0:
-                    sig = tuple((i[3] for i in full_sig))
-                    # I should have only one function left here
-                    for match in matching_sigs:
-                        if len(full_sig) == len(match):
-                            try:
-                                if args and hasattr(args[0], func.__name__): 
-                                    return _registry[match](args[0], *sig)
-                                else:
-                                    return _registry[match](*sig)
-                            except KeyError:
-                                pass
-
-            raise NotImplementedError("No suitable method exists.")
+                matching_sigs = __match_signature(__arguments, full_sig, '>=', 'Only')
+                if len(matching_sigs) > 0: 
+                    ret = __bind_signature(matching_sigs, *args, **kwargs)
+                    if ret is not NotImplemented: return ret
+                
+            if ret is NotImplemented:
+                raise NotImplementedError("No suitable method exists.")
 
     @wraps(func)
     def wrapper(*args, **kwargs):
