@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "Dispatcher"
+authors = [
+    {name = "Andrea Moro", email = "info@andreamoro.eu"},
+]
+description = "A multi-arguments dispatcher based on a signature introspection approach."
+version = "0.3.0rc1"
+readme = "README.md"
+requires-python = ">=3.7"
+license = {text = "GNU-3"}
+keywords = ["dispatcher", "multiple", "arguments"]
+
+[tool.flit.metadata]
+module = "fastapi"

@@ -2,3 +2,9 @@
 .editorconfig
 .python-version
 .vscode/*
+Dispatcher.egg-info/dependency_links.txt
+Dispatcher.egg-info/PKG-INFO
+Dispatcher.egg-info/SOURCES.txt
+Dispatcher.egg-info/top_level.txt
+build/lib/dispatcher.py
+build/lib/dispatcher/dispatcher.py

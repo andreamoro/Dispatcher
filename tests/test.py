@@ -1,3 +1,7 @@
+import os
+import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from dispatcher import dispatcher
 
 @dispatcher
@@ -53,9 +57,8 @@ if __name__ == '__main__':
     # If the method does not exist, it calls arg:str
     # Dispatch to a generic alternative
     foo([1, 2, 3])
-    
+
     # Expected to call arg:int - Dispatch to existing method
-    # 
     foo(1)
         
     # Expected to call (country, operator, append)

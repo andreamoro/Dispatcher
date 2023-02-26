@@ -18,7 +18,6 @@ def dispatcher(func):
     """
     _registry = {}
     __arguments = {}
-    # __default_args = {}
     
     def register(func):
         # Recover the parameters dictionary
@@ -161,24 +160,10 @@ def dispatcher(func):
                     except StopIteration:
                         break
                     idx += 1
+            case _:
+              pass
 
         return matched
-        
-        if not include_generic:
-            matched = matched[::-1]
-            filtered = iter(matched)
-            idx = 0
-            while True:
-                try:
-                    current = next(filtered)
-                    if 'any' in current:
-                        matched.pop(idx)
-                except StopIteration:
-                    break
-                idx += 1
-
-            # restore the original order
-            return matched[::-1]
 
     def __bind_signature(matches, *args, **kwargs):
         '''Private function to attempt binding the given arguments
