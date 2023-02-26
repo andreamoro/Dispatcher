@@ -9,7 +9,7 @@ def foo():
     raise NotImplementedError("This method has not been implementated on purpose.")
 
 @foo.register
-def _(dimension: str, expression: str, operator: str, append: bool):
+def _(dimension:str, expression:str, operator:str, append:bool):
     print('')
     print("dimension: str, expression: str, operator: str, append: bool")
     print(f"dimension: {dimension}, expression: {expression}, operator: {operator}, append: {append}")    
@@ -25,7 +25,6 @@ def _(arg:list):
     print('')
     print("arg:list")
     print(f"arg:{arg}")
-    pass
 
 # @foo.register
 # def _(arg:str):
@@ -53,7 +52,7 @@ def _(country: str, operator: str = 'and', append: bool = False):
 
 
 if __name__ == '__main__':
-    # Expected to call arg:list - Dispatch to existing method
+    # Expected to call arg:list
     # If the method does not exist, it calls arg:str
     # Dispatch to a generic alternative
     foo([1, 2, 3])
@@ -74,5 +73,5 @@ if __name__ == '__main__':
     foo(country='test') 
 
     # Expected to call (country: str, operator: str, append: bool) 
-    # receiving country = test, operator = 'tt' and defaulting the append to False
-    foo('test', 'lalal')
+    # receiving country = test, operator = 'plus' and defaulting the append to False
+    foo('test', 'plus')
