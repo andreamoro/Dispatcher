@@ -128,26 +128,41 @@ def dispatcher(func):
 
             An in-depth check is done with a separate function.
         '''
+        def sigExactMatch(k):
+            return True if include_generic else k == sig_check
+            
         matched = []
 
         match match_type:
             case 'exact' | '==':
-                matched = [k for k in arguments.keys() if len(k) == len(sig_check)]
+                matched = [k for k in arguments.keys() if len(k) == len(sig_check) and sigExactMatch(k)]
             case 'greater' | '>' | 'gt':
-                matched = [k for k in arguments.keys() if len(k) > len(sig_check)]
+                matched = [k for k in arguments.keys() if len(k) > len(sig_check) and sigExactMatch(k)]
             case 'lower' | '<' | 'lt':
-                matched = [k for k in arguments.keys() if len(k) < len(sig_check)]
+                matched = [k for k in arguments.keys() if len(k) < len(sig_check) and sigExactMatch(k)]
             case 'greater equal' | '>=' | 'gte':
-                matched = [k for k in arguments.keys() if len(k) >= len(sig_check)]
+                matched = [k for k in arguments.keys() if len(k) >= len(sig_check) and sigExactMatch(k)]
             case 'lower equal' | '<=' | 'lte':
-                matched = [k for k in arguments.keys() if len(k) <= len(sig_check)]
+                matched = [k for k in arguments.keys() if len(k) <= len(sig_check) and sigExactMatch(k)]
 
         match include_generic:
-            case True: 
-                pass
+            case 'Generics': 
+                filtered = iter(matched)
+                idx = 0
+
+                while True:
+                    try:
+                        current = next(filtered)
+                        if 'any' in current:
+                            matched.pop(idx)
+                    except StopIteration:
+                        break
+                    idx += 1
+
             case False | 'Only':
                 filtered = iter(matched)
                 idx = 0
+
                 while True:
                     try:
                         current = next(filtered)
@@ -214,30 +229,34 @@ def dispatcher(func):
                 raise NotImplementedError("No suitable method exists.")
 
             except KeyError:
-                # Case 1: same argument length, different signature
-                # Case 2: different argument length, have default values
-                # Case 3: same argument length, generic signature
-                
                 ret = NotImplemented
                 
                 # Case 1)
                 # Recalling with the binding approach, any non-matching signature is
                 # captured by a TypeError managed within the exception
-                matching_sigs = __match_signature(__arguments, full_sig, '==', False)
+                # matching_sigs = __match_signature(__arguments, full_sig, '==', False)
+                matching_sigs = __match_signature(__arguments, sig, '==', False)
                 if len(matching_sigs) > 0:
                     ret = __bind_signature(matching_sigs, *args, **kwargs)
                     if ret is not NotImplemented: return ret
                 
                 # Case 2)
                 # Check for alternative method whose signature could be compatible
-                matching_sigs = __match_signature(__arguments, full_sig, '>=', False)
+                matching_sigs = __match_signature(__arguments, sig, '>=', False)
                 if len(matching_sigs) > 0: 
                     ret = __bind_signature(matching_sigs, *args, **kwargs)
                     if ret is not NotImplemented: return ret
 
                 # Case 3)
+                # Check for alternative method with default arguments
+                matching_sigs = __match_signature(__arguments, sig, '>=', 'Generics')
+                if len(matching_sigs) > 0: 
+                    ret = __bind_signature(matching_sigs, *args, **kwargs)
+                    if ret is not NotImplemented: return ret
+                                    
+                # Case 4)
                 # Last attempt, trying to dispatch to a generic if it exists
-                matching_sigs = __match_signature(__arguments, full_sig, '>=', 'Only')
+                matching_sigs = __match_signature(__arguments, sig, '>=', 'Only')
                 if len(matching_sigs) > 0: 
                     ret = __bind_signature(matching_sigs, *args, **kwargs)
                     if ret is not NotImplemented: return ret
