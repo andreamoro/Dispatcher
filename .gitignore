@@ -6,5 +6,8 @@ Dispatcher.egg-info/dependency_links.txt
 Dispatcher.egg-info/PKG-INFO
 Dispatcher.egg-info/SOURCES.txt
 Dispatcher.egg-info/top_level.txt
-build/lib/dispatcher.py
-build/lib/dispatcher/dispatcher.py
+build/*
+multi_args_dispatcher.egg-info/dependency_links.txt
+multi_args_dispatcher.egg-info/PKG-INFO
+multi_args_dispatcher.egg-info/SOURCES.txt
+multi_args_dispatcher.egg-info/top_level.txt

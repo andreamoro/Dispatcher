@@ -3,7 +3,7 @@ requires = ["setuptools", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "Dispatcher"
+name = "multi-args-dispatcher"
 authors = [
     {name = "Andrea Moro", email = "info@andreamoro.eu"},
 ]
@@ -12,5 +12,5 @@ version = "0.3.1rc1"
 readme = "README.md"
 requires-python = ">=3.7"
 license = {text = "GNU-3"}
-keywords = ["dispatcher", "multiple", "arguments"]
+keywords = ["arguments dispatcher", "multiple", "arguments", "multiple arguments"]
 
