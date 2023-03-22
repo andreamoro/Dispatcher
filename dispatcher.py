@@ -1,3 +1,5 @@
+import sys
+
 from functools import wraps
 from inspect import signature
 from enum import Enum
@@ -79,7 +81,7 @@ def dispatcher(func):
             __arguments.update({fnc_to_reg: arguments})
 
     def __get_signature(*args, **kwargs):
-        '''Private function to build the signatures from the callee.'''
+        """Private function to build the signatures from the callee."""
         def sig_pack(arg, value = None):
             if value:
                 # Keyword arg
@@ -122,44 +124,43 @@ def dispatcher(func):
         return signature_
 
     def __match_signature(arguments, sig_check, match_type, include_generic):
-        '''Private function to find out matching signatures.
+        """Private function to find out matching signatures.
             The check is purely based on numerical numbers and looking for
             generic parameters if requested.
 
             An in-depth check is done with a separate function.
-        '''
+        """
         def sigExactMatch(k):
             return True if include_generic else k == sig_check
-            
+
         matched = []
+        python_ver = sys.version_info
+        if python_ver[0] == 3 and python_ver[1] <= 9:
+            if match_type in ("exact", "=="):
+                matched = [k for k in arguments.keys() if len(k) == len(sig_check)]
+            elif match_type in ("greater", ">", "gt"):
+                matched = [k for k in arguments.keys() if len(k) > len(sig_check)]
+            elif match_type in ("lower", "<", "lt"):
+                matched = [k for k in arguments.keys() if len(k) < len(sig_check)]
+            elif match_type in ("greater equal", ">=", "gte"):
+                matched = [k for k in arguments.keys() if len(k) >= len(sig_check)]
+            elif match_type in ("lower equal", "<=", "lte"):
+                matched = [k for k in arguments.keys() if len(k) <= len(sig_check)]
 
-        match match_type:
-            case 'exact' | '==':
-                matched = [k for k in arguments.keys() if len(k) == len(sig_check) and sigExactMatch(k)]
-            case 'greater' | '>' | 'gt':
-                matched = [k for k in arguments.keys() if len(k) > len(sig_check) and sigExactMatch(k)]
-            case 'lower' | '<' | 'lt':
-                matched = [k for k in arguments.keys() if len(k) < len(sig_check) and sigExactMatch(k)]
-            case 'greater equal' | '>=' | 'gte':
-                matched = [k for k in arguments.keys() if len(k) >= len(sig_check) and sigExactMatch(k)]
-            case 'lower equal' | '<=' | 'lte':
-                matched = [k for k in arguments.keys() if len(k) <= len(sig_check) and sigExactMatch(k)]
-
-        match include_generic:
-            case 'Generics': 
+            if include_generic == "Generics":
                 filtered = iter(matched)
                 idx = 0
 
                 while True:
                     try:
                         current = next(filtered)
-                        if 'any' in current:
+                        if "any" in current:
                             matched.pop(idx)
                     except StopIteration:
                         break
                     idx += 1
 
-            case False | 'Only':
+            elif include_generic in (False, "Only"):
                 filtered = iter(matched)
                 idx = 0
 
@@ -167,27 +168,73 @@ def dispatcher(func):
                     try:
                         current = next(filtered)
                         if include_generic == False:
-                            if 'any' in current:
+                            if "any" in current:
                                 matched.pop(idx)
                         else:
-                            if 'any' not in current:
+                            if "any" not in current:
                                 matched.pop(idx)
                     except StopIteration:
                         break
                     idx += 1
-            case _:
-              pass
+            else:
+                pass
+            
+        else:
+            match match_type:
+                case 'exact' | '==':
+                    matched = [k for k in arguments.keys() if len(k) == len(sig_check) and sigExactMatch(k)]
+                case 'greater' | '>' | 'gt':
+                    matched = [k for k in arguments.keys() if len(k) > len(sig_check) and sigExactMatch(k)]
+                case 'lower' | '<' | 'lt':
+                    matched = [k for k in arguments.keys() if len(k) < len(sig_check) and sigExactMatch(k)]
+                case 'greater equal' | '>=' | 'gte':
+                    matched = [k for k in arguments.keys() if len(k) >= len(sig_check) and sigExactMatch(k)]
+                case 'lower equal' | '<=' | 'lte':
+                    matched = [k for k in arguments.keys() if len(k) <= len(sig_check) and sigExactMatch(k)]
+
+            match include_generic:
+                case 'Generics': 
+                    filtered = iter(matched)
+                    idx = 0
+
+                    while True:
+                        try:
+                            current = next(filtered)
+                            if 'any' in current:
+                                matched.pop(idx)
+                        except StopIteration:
+                            break
+                        idx += 1
+
+                case False | 'Only':
+                    filtered = iter(matched)
+                    idx = 0
+
+                    while True:
+                        try:
+                            current = next(filtered)
+                            if include_generic == False:
+                                if 'any' in current:
+                                    matched.pop(idx)
+                            else:
+                                if 'any' not in current:
+                                    matched.pop(idx)
+                        except StopIteration:
+                            break
+                        idx += 1
+                case _:
+                    pass
 
         return matched
 
     def __bind_signature(matches, *args, **kwargs):
-        '''Private function to attempt binding the given arguments
+        """Private function to attempt binding the given arguments
         with a possible signature, then launch the dispatch. 
-        
+
         Args:
             matches: contains the matched signatures
             args & kwargs: the arguments that will dispatched
-        '''
+        """
         for idx, sig in enumerate(matches):
             try:
                 sig_test = signature(_registry.get(matches[idx]))
@@ -270,5 +317,5 @@ def dispatcher(func):
 
     wrapper.register = register
     wrapper.registry = _registry
-    
+
     return wrapper
