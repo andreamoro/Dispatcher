@@ -306,6 +306,7 @@ def dispatcher(func):
             return _registry[sig](*args, **kwargs)
         except KeyError:
             # TODO: Sig_type and sig can be the same, avoid the call
+            sig = []
             try:
                 # Attempt to dispatch to the same method but by signature type
                 sig = tuple((i[2] for i in full_sig))
@@ -319,7 +320,7 @@ def dispatcher(func):
                 # Case 1)
                 # Recalling with the binding approach, any non-matching
                 # signature is captured by a TypeError managed within
-                # the exception 
+                # the exception
                 matching_sigs = __match_signature(__arguments, sig, "==", False)
                 if len(matching_sigs) > 0:
                     ret = __bind_signature(matching_sigs, *args, **kwargs)
@@ -327,7 +328,8 @@ def dispatcher(func):
                         return ret
 
                 # Case 2)
-                # Check for alternative method whose signature could be compatible
+                # Check for alternative method whose signature could be
+                # compatible
                 matching_sigs = __match_signature(__arguments, sig, ">=", False)
                 if len(matching_sigs) > 0:
                     ret = __bind_signature(matching_sigs, *args, **kwargs)
