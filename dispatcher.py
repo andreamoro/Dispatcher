@@ -40,9 +40,18 @@ def dispatcher(func):
             if p.name == "self":
                 continue
 
+            # Storing the type of p.annotation. This has become
+            # necessary to resolve some changes that the
+            # from __furture__ import annotations
+            # introduces
+            if isinstance(p.annotation, type):
+                annotation_name = p.annotation.__name__
+            else:
+                annotation_name = p.annotation
+
             # Capturing the value of my parameter;
             # Taking into account an Enum can passed
-            # Ovveriding the kind of value for later chechcks
+            # Ovveriding the kind value for later cheks
             if isinstance(p.default, Enum):
                 # Here the Enum was having a default value attached
                 value = p.default  # .value
@@ -51,26 +60,22 @@ def dispatcher(func):
                 # Here it's an Enum without a default value
                 value = "empty"
                 kind = 5
-            elif p.annotation.__name__ != "_empty" and p.kind.value == 1:
+            elif annotation_name != "_empty" and p.kind.value == 1:
                 value = "empty" if "_empty" in str(p.default) else p.default
                 kind = 4
-
-            # elif isinstance(p.default, type):
-            #     # original
-            #     value = 'empty'
-            #     kind = 4
             else:
                 value = "empty" if "_empty" in str(p.default) else p.default
                 kind = p.kind.value
 
-            if p.annotation.__name__ == "_empty":
+            if annotation_name == "_empty":
                 method_sig = (
                     "any"
                     if type(p.default).__name__ == "type"
                     else type(p.default).__name__
                 )
             else:
-                method_sig = p.annotation.__name__
+                method_sig = annotation_name
+                # method_sig = p.annotation.__name__
                 # method_sig = p.name
 
             arguments.append((p.name, kind, method_sig, value))
@@ -100,9 +105,10 @@ def dispatcher(func):
                 # Positional arg
                 n = (
                     t if (t := arg.__class__.__name__) != "type" else arg.__name__
-                )  #'any'
+                )
                 # Manage the Enum type if any or factoring the positional type.
-                # A 'positional only' or 'positional/keyword' is a positional arg, hence 1.
+                # A 'positional only' or 'positional/keyword' is a
+                # positional arg, hence 1.
                 k = 5 if isinstance(arg, Enum) or "enum" in str(type(arg)) else 1
                 # t = type(
                 #     arg
@@ -150,20 +156,30 @@ def dispatcher(func):
         python_ver = sys.version_info
         if python_ver[0] == 3 and python_ver[1] <= 9:
             if match_type in ("exact", "=="):
-                matched = [k for k in arguments.keys()
-                        if len(k) == len(sig_check)]
+                matched = [
+                    k for k in arguments.keys()
+                    if len(k) == len(sig_check)
+                ]
             elif match_type in ("greater", ">", "gt"):
-                matched = [k for k in arguments.keys()
-                        if len(k) > len(sig_check)]
+                matched = [
+                    k for k in arguments.keys()
+                    if len(k) > len(sig_check)
+                ]
             elif match_type in ("lower", "<", "lt"):
-                matched = [k for k in arguments.keys()
-                        if len(k) < len(sig_check)]
+                matched = [
+                    k for k in arguments.keys()
+                    if len(k) < len(sig_check)
+                ]
             elif match_type in ("greater equal", ">=", "gte"):
-                matched = [k for k in arguments.keys()
-                        if len(k) >= len(sig_check)]
+                matched = [
+                    k for k in arguments.keys()
+                    if len(k) >= len(sig_check)
+                ]
             elif match_type in ("lower equal", "<=", "lte"):
-                matched = [k for k in arguments.keys()
-                        if len(k) <= len(sig_check)]
+                matched = [
+                    k for k in arguments.keys()
+                    if len(k) <= len(sig_check)
+                ]
 
             if include_generic == "Generics":
                 filtered = iter(matched)
@@ -321,7 +337,9 @@ def dispatcher(func):
                 # Recalling with the binding approach, any non-matching
                 # signature is captured by a TypeError managed within
                 # the exception
-                matching_sigs = __match_signature(__arguments, sig, "==", False)
+                matching_sigs = __match_signature(
+                    __arguments, sig, "==", False
+                )
                 if len(matching_sigs) > 0:
                     ret = __bind_signature(matching_sigs, *args, **kwargs)
                     if ret is not NotImplemented:
@@ -330,7 +348,9 @@ def dispatcher(func):
                 # Case 2)
                 # Check for alternative method whose signature could be
                 # compatible
-                matching_sigs = __match_signature(__arguments, sig, ">=", False)
+                matching_sigs = __match_signature(
+                    __arguments, sig, ">=", False
+                )
                 if len(matching_sigs) > 0:
                     ret = __bind_signature(matching_sigs, *args, **kwargs)
                     if ret is not NotImplemented:
@@ -338,7 +358,9 @@ def dispatcher(func):
 
                 # Case 3)
                 # Check for alternative method with default arguments
-                matching_sigs = __match_signature(__arguments, sig, ">=", "Generics")
+                matching_sigs = __match_signature(
+                    __arguments, sig, ">=", "Generics"
+                )
                 if len(matching_sigs) > 0:
                     ret = __bind_signature(matching_sigs, *args, **kwargs)
                     if ret is not NotImplemented:
@@ -346,7 +368,9 @@ def dispatcher(func):
 
                 # Case 4)
                 # Last attempt, trying to dispatch to a generic if it exists
-                matching_sigs = __match_signature(__arguments, sig, ">=", "Only")
+                matching_sigs = __match_signature(
+                    __arguments, sig, ">=", "Only"
+                )
                 if len(matching_sigs) > 0:
                     ret = __bind_signature(matching_sigs, *args, **kwargs)
                     if ret is not NotImplemented:
