@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os
 import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -12,14 +13,14 @@ def foo():
 def _(dimension:str, expression:str, operator:str, append:bool):
     print('')
     print("dimension: str, expression: str, operator: str, append: bool")
-    print(f"dimension: {dimension}, expression: {expression}, operator: {operator}, append: {append}")    
+    print(f"dimension: {dimension}, expression: {expression}, operator: {operator}, append: {append}")
 
 @foo.register
 def _(arg:int):
     print('')
     print("arg:int")
     print(f"arg:{arg}")
-    
+
 @foo.register
 def _(arg:list):
     print('')
@@ -59,7 +60,7 @@ if __name__ == '__main__':
 
     # Expected to call arg:int - Dispatch to existing method
     foo(1)
-        
+
     # Expected to call (country, operator, append)
     foo('a', 'b', 'c')
     foo(1, 2, 3)
@@ -67,11 +68,11 @@ if __name__ == '__main__':
     # Expected to call (arg: str) if not commented
     # else (country: str, operator: str = 'and', append: bool = False)
     # The two method cannot exist together
-    foo('test') 
+    foo('test')
 
     # Expected to call (country: str)
-    foo(country='test') 
+    foo(country='test')
 
-    # Expected to call (country: str, operator: str, append: bool) 
+    # Expected to call (country: str, operator: str, append: bool)
     # receiving country = test, operator = 'plus' and defaulting the append to False
     foo('test', 'plus')
