@@ -8,7 +8,7 @@ authors = [
     {name = "Andrea Moro", email = "info@andreamoro.eu"},
 ]
 description = "A multi-arguments dispatcher based on a signature introspection approach."
-version = "0.3.2"
+version = "0.3.3"
 readme = "README.md"
 requires-python = ">=3.7"
 license = {text = "GNU-3"}
