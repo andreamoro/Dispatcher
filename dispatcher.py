@@ -1,4 +1,4 @@
-import sys
+import operator
 
 from functools import wraps
 from inspect import signature
@@ -14,13 +14,22 @@ def dispatcher(func):
     multiple methods/functions can be recalled using the parenting
     function name.
 
-    The function includes a pairing mechanism (far to be perfect), that
-    recall methods with the closest signature when a method/function is
-    recalled with a non-exact signature.
+    The function includes a pairing mechanism (far to be perfect),
+    recalling the method with the closest signature when a requested
+    non-exact signature method is invoked.
+
     If no matches are found, an exception is thrown.
     """
     _registry = {}
     __arguments = {}
+
+    MATCH_TYPE_COMPARATORS = {
+        **{k: operator.eq for k in ("exact", "==")},
+        **{k: operator.gt for k in ("greater", ">", "gt")},
+        **{k: operator.lt for k in ("lower", "<", "lt")},
+        **{k: operator.ge for k in ("greater equal", ">=", "gte")},
+        **{k: operator.le for k in ("lower equal", "<=", "lte")},
+    }
 
     def register(func):
         # Recover the parameters dictionary
@@ -40,10 +49,9 @@ def dispatcher(func):
             if p.name == "self":
                 continue
 
-            # Storing the type of p.annotation. This has become
-            # necessary to resolve some changes that the
+            # Storing the type of p.annotation.
+            # A necessaty to resolve code compatibility introduced by
             # from __furture__ import annotations
-            # introduces
             if isinstance(p.annotation, type):
                 annotation_name = p.annotation.__name__
             else:
@@ -56,10 +64,13 @@ def dispatcher(func):
                 # Here the Enum was having a default value attached
                 value = p.default  # .value
                 kind = 5
-            elif "enum" in str(p.annotation):
+            elif "enum" in annotation_name:
                 # Here it's an Enum without a default value
                 value = "empty"
                 kind = 5
+            elif annotation_name == "list" and p.kind.value == 1:
+                value = "any"
+                kind = 4
             elif annotation_name != "_empty" and p.kind.value == 1:
                 value = "empty" if "_empty" in str(p.default) else p.default
                 kind = 4
@@ -106,16 +117,19 @@ def dispatcher(func):
                 n = (
                     t if (t := arg.__class__.__name__) != "type" else arg.__name__
                 )
-                # Manage the Enum type if any or factoring the positional type.
-                # A 'positional only' or 'positional/keyword' is a
-                # positional arg, hence 1.
-                k = 5 if isinstance(arg, Enum) or "enum" in str(type(arg)) else 1
-                # t = type(
-                #     arg
-                # ).__name__  # (t if (t := arg.__class__.__name__) != 'type' else arg.__name__)
-                # v = arg
-                t = type(value).__name__
                 v = value
+
+                if isinstance(arg, Enum) or "enum" in str(type(arg)):
+                    k = 5
+                    # t = type(value).__name__
+                    t = type(arg).__name__
+                elif isinstance(arg, list) or "list" in str(type(arg)):
+                    k = 4
+                    t = any.__name__
+                else:
+                    k = 1
+                    # t = type(value).__name__
+                    t = type(arg).__name__
 
             return tuple((n, k, t, v))
 
@@ -152,140 +166,49 @@ def dispatcher(func):
         def sigExactMatch(k):
             return True if include_generic else k == sig_check
 
-        matched = []
-        python_ver = sys.version_info
-        if python_ver[0] == 3 and python_ver[1] <= 9:
-            if match_type in ("exact", "=="):
-                matched = [
-                    k for k in arguments.keys()
-                    if len(k) == len(sig_check)
-                ]
-            elif match_type in ("greater", ">", "gt"):
-                matched = [
-                    k for k in arguments.keys()
-                    if len(k) > len(sig_check)
-                ]
-            elif match_type in ("lower", "<", "lt"):
-                matched = [
-                    k for k in arguments.keys()
-                    if len(k) < len(sig_check)
-                ]
-            elif match_type in ("greater equal", ">=", "gte"):
-                matched = [
-                    k for k in arguments.keys()
-                    if len(k) >= len(sig_check)
-                ]
-            elif match_type in ("lower equal", "<=", "lte"):
-                matched = [
-                    k for k in arguments.keys()
-                    if len(k) <= len(sig_check)
-                ]
+        op = MATCH_TYPE_COMPARATORS[match_type]
+        matches = [k for k in arguments if op(len(k), len(sig_check))]
 
-            if include_generic == "Generics":
-                filtered = iter(matched)
-                idx = 0
+        if include_generic == "Generics":
+            filtered = iter(matches)
+            idx = 0
 
-                while True:
-                    try:
-                        current = next(filtered)
-                        if "any" in current:
-                            matched.pop(idx)
-                    except StopIteration:
-                        break
-                    idx += 1
+            while True:
+                try:
+                    current = next(filtered)
+                    # if "any" not in current:
+                    if "any" in current:
+                        matches.pop(idx)
+                except StopIteration:
+                    break
+                idx += 1
 
-            elif include_generic in (False, "Only"):
-                filtered = iter(matched)
-                idx = 0
+        elif include_generic in (False, "Only", "only"):
+            filtered = iter(matches)
+            idx = 0
 
-                while True:
-                    try:
-                        current = next(filtered)
-                        if include_generic == False:
-                            if "any" in current:
-                                matched.pop(idx)
-                        else:
-                            if "any" not in current:
-                                matched.pop(idx)
-                    except StopIteration:
-                        break
-                    idx += 1
-            else:
-                pass
-
+            while True:
+                try:
+                    current = next(filtered)
+                    # if include_generic == False:
+                    #     if "any" in current:
+                    #         matched.pop(idx)
+                    # else:
+                    if "any" not in current:
+                        matches.pop(idx)
+                except StopIteration:
+                    break
+                idx += 1
         else:
-            match match_type:
-                case "exact" | "==":
-                    matched = [
-                        k
-                        for k in arguments.keys()
-                        if len(k) == len(sig_check) and sigExactMatch(k)
-                    ]
-                case "greater" | ">" | "gt":
-                    matched = [
-                        k
-                        for k in arguments.keys()
-                        if len(k) > len(sig_check) and sigExactMatch(k)
-                    ]
-                case "lower" | "<" | "lt":
-                    matched = [
-                        k
-                        for k in arguments.keys()
-                        if len(k) < len(sig_check) and sigExactMatch(k)
-                    ]
-                case "greater equal" | ">=" | "gte":
-                    matched = [
-                        k
-                        for k in arguments.keys()
-                        if len(k) >= len(sig_check) and sigExactMatch(k)
-                    ]
-                case "lower equal" | "<=" | "lte":
-                    matched = [
-                        k
-                        for k in arguments.keys()
-                        if len(k) <= len(sig_check) and sigExactMatch(k)
-                    ]
+            pass
 
-            match include_generic:
-                case "Generics":
-                    filtered = iter(matched)
-                    idx = 0
-
-                    while True:
-                        try:
-                            current = next(filtered)
-                            if "any" in current:
-                                matched.pop(idx)
-                        except StopIteration:
-                            break
-                        idx += 1
-
-                case False | "Only":
-                    filtered = iter(matched)
-                    idx = 0
-
-                    while True:
-                        try:
-                            current = next(filtered)
-                            if include_generic == False:
-                                if "any" in current:
-                                    matched.pop(idx)
-                            else:
-                                if "any" not in current:
-                                    matched.pop(idx)
-                        except StopIteration:
-                            break
-                        idx += 1
-                case _:
-                    pass
-
-        return matched
+        return matches
 
     def __bind_signature(matches, *args, **kwargs):
-        """Private function to attempt binding the given arguments
-        with a possible signature, then launch the dispatch.
+        """Attempt binding the given arguments with a signature,
+        then launch the dispatch if match is found.
 
-        Args:
+        Args:1
             matches: contains the matched signatures
             args & kwargs: the arguments that will dispatched
         """
@@ -308,12 +231,10 @@ def dispatcher(func):
             # avoid parsing the self parameter when inside a class
             if len(args[1:]) == 0 and len(kwargs) == 0:
                 return args[0]
-
             full_sig = __get_signature(*args[1:], **kwargs)
         else:
             if len(args) == 0 and len(kwargs) == 0:
                 raise NotImplementedError("No suitable method exists.")
-
             full_sig = __get_signature(*args, **kwargs)
 
         try:
@@ -321,7 +242,6 @@ def dispatcher(func):
             sig = tuple((i[0] for i in full_sig))
             return _registry[sig](*args, **kwargs)
         except KeyError:
-            # TODO: Sig_type and sig can be the same, avoid the call
             sig = []
             try:
                 # Attempt to dispatch to the same method but by signature type
@@ -359,7 +279,7 @@ def dispatcher(func):
                 # Case 3)
                 # Check for alternative method with default arguments
                 matching_sigs = __match_signature(
-                    __arguments, sig, ">=", "Generics"
+                    __arguments, sig, ">", "Generics"
                 )
                 if len(matching_sigs) > 0:
                     ret = __bind_signature(matching_sigs, *args, **kwargs)
@@ -369,7 +289,7 @@ def dispatcher(func):
                 # Case 4)
                 # Last attempt, trying to dispatch to a generic if it exists
                 matching_sigs = __match_signature(
-                    __arguments, sig, ">=", "Only"
+                    __arguments, sig, ">=", "Generics"
                 )
                 if len(matching_sigs) > 0:
                     ret = __bind_signature(matching_sigs, *args, **kwargs)
@@ -385,5 +305,4 @@ def dispatcher(func):
 
     wrapper.register = register
     wrapper.registry = _registry
-
     return wrapper
