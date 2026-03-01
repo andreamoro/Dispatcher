@@ -6,7 +6,12 @@ This is a multi-arguments dispatcher based on a signature introspection approach
 
 The method was developed to provide a pairing mechanism support (far to be perfect) when a method/function is recalled and non-exact signature is found. If no matches are found, an exception is thrown.
 
+## Compatibility
+
+The dispatcher fully supports `from __future__ import annotations` (PEP 563) by resolving string annotations via `typing.get_type_hints()`.
+
 ## Usage
+
 As soon as the method is imported, a non-executable function can be declared to create the dispatcher.
 
 ```python

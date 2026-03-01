@@ -1,4 +1,5 @@
 import operator
+import typing
 
 from functools import wraps
 from inspect import signature
@@ -37,6 +38,13 @@ def dispatcher(func):
         arguments = []
         sig = signature(func)
 
+        # Resolve string annotations introduced by
+        # from __future__ import annotations
+        try:
+            hints = typing.get_type_hints(func)
+        except Exception:
+            hints = {}
+
         for p in sig.parameters.values():
             # Parse the signature to build the entry point
             # For each parameter, do recognise:
@@ -49,13 +57,14 @@ def dispatcher(func):
             if p.name == "self":
                 continue
 
-            # Storing the type of p.annotation.
-            # A necessaty to resolve code compatibility introduced by
-            # from __furture__ import annotations
-            if isinstance(p.annotation, type):
-                annotation_name = p.annotation.__name__
+            # Resolve the annotation using typing.get_type_hints()
+            # which correctly handles string annotations from
+            # from __future__ import annotations
+            resolved = hints.get(p.name, p.annotation)
+            if isinstance(resolved, type):
+                annotation_name = resolved.__name__
             else:
-                annotation_name = p.annotation
+                annotation_name = str(resolved).rsplit('.', 1)[-1]
 
             # Capturing the value of my parameter;
             # Taking into account an Enum can passed
